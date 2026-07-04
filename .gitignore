@@ -6,3 +6,6 @@ __pycache__/
 *.tmp
 vault.yml
 vault.yml.*
+
+artefacts/install/*.zip
+artefacts/upgrade/*.zip

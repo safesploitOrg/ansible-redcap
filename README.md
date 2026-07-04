@@ -103,6 +103,45 @@ ansible-playbook playbooks/redcap-rollback.yml \
 
 ---
 
+## Artefacts (REDCap install and upgrade)
+
+<details>
+<summary>
+Permanently change artefacts path
+</summary>
+
+Edit `roles/redcap_artefacts/defaults/main.yml`
+
+```yml
+redcap_artifact_base_dir: "{{ playbook_dir }}/../../artefacts"
+```
+
+</details>
+
+### Artefact layout
+
+```text
+REDCap install and upgrade ZIP files are expected under the artefacts directory, for example:
+
+```text
+artefacts/
+├── install/
+│   ├── redcap17.2.1.zip
+│   └── redcap17.0.0.zip
+└── upgrade/
+    ├── redcap17.2.1_upgrade.zip
+    └── redcap17.0.0_upgrade.zip
+```
+
+### Override Artefact Path  
+
+```bash
+ansible-playbook playbooks/redcap-install.yml \
+  -e "redcap_artifact_base_dir=/path/to/your/artefacts"
+```
+
+---
+
 ## 🐳 Docker Lab
 
 <details>
