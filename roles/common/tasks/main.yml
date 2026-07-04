@@ -1,0 +1,44 @@
+---
+- name: Install common REDCap prerequisites
+  ansible.builtin.dnf:
+    name: "{{ redcap_common_packages }}"
+    state: present
+
+- name: Install REDCap mail transport packages
+  ansible.builtin.dnf:
+    name: "{{ redcap_common_mail_packages }}"
+    state: present
+  when: redcap_common_install_mail_transport | bool
+
+- name: Start and enable common REDCap services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: "{{ redcap_common_services }}"
+  when: redcap_manage_common_services | bool
+
+- name: Start and enable REDCap mail transport services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: "{{ redcap_common_mail_services }}"
+  when:
+    - redcap_manage_common_services | bool
+    - redcap_common_install_mail_transport | bool
+
+- name: Set REDCap host name
+  ansible.builtin.hostname:
+    name: "{{ redcap_url_name }}"
+  when: redcap_manage_hostname | bool
+
+- name: Add REDCap local host aliases
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^127\\.0\\.0\\.1\\s+"
+    line: "127.0.0.1 localhost {{ redcap_url_name }} {{ redcap_fqdn }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: redcap_manage_hosts_file | bool

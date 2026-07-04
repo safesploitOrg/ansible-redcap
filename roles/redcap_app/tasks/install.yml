@@ -1,0 +1,113 @@
+---
+- name: Ensure REDCap web parent exists
+  ansible.builtin.file:
+    path: "{{ redcap_web_parent_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Extract REDCap install artifact
+  ansible.builtin.unarchive:
+    src: "{{ redcap_artifact_resolved_path }}"
+    dest: "{{ redcap_web_parent_dir }}"
+    remote_src: true
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_web_file_mode }}"
+
+- name: Check REDCap database.php after install extraction
+  ansible.builtin.stat:
+    path: "{{ redcap_database_php_path }}"
+  register: redcap_install_database_php
+
+- name: Validate REDCap database.php after install extraction
+  ansible.builtin.assert:
+    that:
+      - redcap_install_database_php.stat.exists | default(false)
+    fail_msg: "REDCap database.php was not found at {{ redcap_database_php_path }} after extraction."
+
+- name: Generate REDCap salt when missing
+  ansible.builtin.set_fact:
+    redcap_db_salt: "{{ lookup('community.general.random_string', length=40, special=false) }}"
+  when:
+    - redcap_generate_missing_secrets | bool
+    - redcap_db_salt is not defined or redcap_db_salt | length == 0
+  no_log: true
+
+- name: Generate REDCap admin password when missing
+  ansible.builtin.set_fact:
+    redcap_admin_password: "{{ lookup('community.general.random_string', length=20, special=false) }}"
+  when:
+    - redcap_generate_missing_secrets | bool
+    - redcap_admin_password is not defined or redcap_admin_password | length == 0
+  no_log: true
+
+- name: Require REDCap application secrets
+  ansible.builtin.assert:
+    that:
+      - redcap_db_password is defined
+      - redcap_db_password | length > 0
+      - redcap_db_salt is defined
+      - redcap_db_salt | length > 0
+    fail_msg: >-
+      REDCap application secrets are missing. Provide redcap_db_password and
+      redcap_db_salt, or enable redcap_generate_missing_secrets for lab use.
+  no_log: true
+
+- name: Configure REDCap database.php
+  ansible.builtin.lineinfile:
+    path: "{{ redcap_database_php_path }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - regexp: "^\\$hostname\\s*="
+      line: "$hostname='{{ redcap_db_host }}';"
+    - regexp: "^\\$username\\s*="
+      line: "$username='{{ redcap_db_user }}';"
+    - regexp: "^\\$password\\s*="
+      line: "$password='{{ redcap_db_password }}';"
+    - regexp: "^\\$db\\s*="
+      line: "$db='{{ redcap_db_name }}';"
+    - regexp: "^\\$salt\\s*="
+      line: "$salt='{{ redcap_db_salt }}';"
+  no_log: true
+
+- name: Apply REDCap filesystem permissions
+  ansible.builtin.include_tasks: permissions.yml
+
+- name: Create REDCap cron job
+  ansible.builtin.cron:
+    name: REDCap Cron
+    user: "{{ redcap_cron_user }}"
+    job: "{{ redcap_cron_job }}"
+  when: redcap_cron_enabled | bool
+
+- name: Ensure REDCap install details directory exists
+  ansible.builtin.file:
+    path: "{{ redcap_install_details_dir }}"
+    state: directory
+    owner: "{{ redcap_install_details_owner }}"
+    group: "{{ redcap_install_details_group }}"
+    mode: "{{ redcap_install_details_dir_mode }}"
+  when: redcap_write_install_details | bool
+
+- name: Write REDCap install details
+  ansible.builtin.copy:
+    dest: "{{ redcap_install_details_path }}"
+    owner: "{{ redcap_install_details_owner }}"
+    group: "{{ redcap_install_details_group }}"
+    mode: "{{ redcap_install_details_file_mode }}"
+    content: |
+      "Group","Title","Username","Password","URL"
+      {% if redcap_write_sensitive_install_details | bool %}
+      "REDCAP/{{ redcap_url_name }}","MariaDB root","root","{{ redcap_mysql_root_password }}",""
+      "REDCAP/{{ redcap_url_name }}","REDCap DB {{ redcap_db_name }}","{{ redcap_db_user }}","{{ redcap_db_password }}",""
+      "REDCAP/{{ redcap_url_name }}","REDCap DB salt","salt","{{ redcap_db_salt }}",""
+      "REDCAP/{{ redcap_url_name }}","REDCap Admin","{{ redcap_admin_username }}","{{ redcap_admin_password | default('') }}","https://{{ redcap_fqdn }}"
+      {% else %}
+      "REDCAP/{{ redcap_url_name }}","REDCap DB {{ redcap_db_name }}","{{ redcap_db_user }}","managed externally",""
+      "REDCAP/{{ redcap_url_name }}","REDCap Admin","{{ redcap_admin_username }}","managed externally","https://{{ redcap_fqdn }}"
+      {% endif %}
+  when: redcap_write_install_details | bool
+  no_log: "{{ redcap_write_sensitive_install_details | bool }}"

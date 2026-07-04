@@ -1,0 +1,72 @@
+---
+- name: Preserve REDCap database.php before upgrade
+  ansible.builtin.copy:
+    src: "{{ redcap_database_php_path }}"
+    dest: "{{ redcap_database_php_backup_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Extract REDCap upgrade artifact
+  ansible.builtin.unarchive:
+    src: "{{ redcap_artifact_resolved_path }}"
+    dest: "{{ redcap_web_parent_dir }}"
+    remote_src: true
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_web_file_mode }}"
+
+- name: Restore REDCap database.php after upgrade extraction
+  ansible.builtin.copy:
+    src: "{{ redcap_database_php_backup_path }}"
+    dest: "{{ redcap_database_php_path }}"
+    remote_src: true
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_web_file_mode }}"
+    force: true
+
+- name: Remove temporary REDCap database.php backup
+  ansible.builtin.file:
+    path: "{{ redcap_database_php_backup_path }}"
+    state: absent
+
+- name: Apply REDCap filesystem permissions
+  ansible.builtin.include_tasks: permissions.yml
+
+- name: Find REDCap version directories
+  ansible.builtin.find:
+    paths: "{{ redcap_web_root }}"
+    patterns: "^redcap_v[0-9.]+$"
+    use_regex: true
+    file_type: directory
+  register: redcap_version_directories
+  when: redcap_remove_old_versions | bool
+
+- name: Initialize latest REDCap version tracking
+  ansible.builtin.set_fact:
+    redcap_latest_version: ""
+    redcap_latest_version_path: ""
+  when: redcap_remove_old_versions | bool
+
+- name: Detect latest REDCap version directory
+  ansible.builtin.set_fact:
+    redcap_latest_version: "{{ redcap_current_version }}"
+    redcap_latest_version_path: "{{ item.path }}"
+  vars:
+    redcap_current_version: "{{ item.path | regex_replace('.*/redcap_v', '') }}"
+  loop: "{{ redcap_version_directories.files | default([]) }}"
+  when:
+    - redcap_remove_old_versions | bool
+    - redcap_latest_version | length == 0 or redcap_current_version is version(redcap_latest_version, '>')
+
+- name: Remove older REDCap version directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ redcap_version_directories.files | default([]) }}"
+  when:
+    - redcap_remove_old_versions | bool
+    - redcap_latest_version_path | length > 0
+    - item.path != redcap_latest_version_path

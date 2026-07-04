@@ -1,0 +1,59 @@
+# Managed by Ansible.
+
+<VirtualHost *:80>
+    ServerName {{ redcap_httpd_server_name }}
+{% for alias in redcap_httpd_server_aliases %}
+{% if alias and alias != redcap_httpd_server_name %}
+    ServerAlias {{ alias }}
+{% endif %}
+{% endfor %}
+{% if redcap_httpd_ssl_enabled | bool and redcap_httpd_redirect_http_to_https | bool %}
+    Redirect permanent / {{ redcap_httpd_canonical_url }}
+{% else %}
+    DocumentRoot "{{ redcap_httpd_document_root }}"
+    DirectoryIndex index.php index.html
+
+    <Directory "{{ redcap_httpd_document_root }}">
+        Options {{ redcap_httpd_directory_options }}
+        AllowOverride {{ redcap_httpd_allow_override }}
+        Require all granted
+    </Directory>
+
+    <FilesMatch \.php$>
+        SetHandler "{{ redcap_httpd_php_handler }}"
+    </FilesMatch>
+
+    ErrorLog logs/redcap_error_log
+    CustomLog logs/redcap_access_log combined
+{% endif %}
+</VirtualHost>
+
+{% if redcap_httpd_ssl_enabled | bool %}
+<VirtualHost *:443>
+    ServerName {{ redcap_httpd_server_name }}
+{% for alias in redcap_httpd_server_aliases %}
+{% if alias and alias != redcap_httpd_server_name %}
+    ServerAlias {{ alias }}
+{% endif %}
+{% endfor %}
+    DocumentRoot "{{ redcap_httpd_document_root }}"
+    DirectoryIndex index.php index.html
+
+    <Directory "{{ redcap_httpd_document_root }}">
+        Options {{ redcap_httpd_directory_options }}
+        AllowOverride {{ redcap_httpd_allow_override }}
+        Require all granted
+    </Directory>
+
+    <FilesMatch \.php$>
+        SetHandler "{{ redcap_httpd_php_handler }}"
+    </FilesMatch>
+
+    SSLEngine on
+    SSLCertificateFile {{ redcap_httpd_ssl_certificate_file }}
+    SSLCertificateKeyFile {{ redcap_httpd_ssl_certificate_key_file }}
+
+    ErrorLog logs/redcap_ssl_error_log
+    CustomLog logs/redcap_ssl_access_log combined
+</VirtualHost>
+{% endif %}

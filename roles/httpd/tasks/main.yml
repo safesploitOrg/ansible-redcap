@@ -1,0 +1,120 @@
+---
+- name: Install Apache HTTPD packages
+  ansible.builtin.dnf:
+    name: "{{ redcap_httpd_packages }}"
+    state: present
+
+- name: Install optional Certbot Apache packages
+  ansible.builtin.dnf:
+    name: "{{ redcap_httpd_certbot_packages }}"
+    state: present
+  when: redcap_httpd_install_certbot | bool
+
+- name: Ensure Apache REDCap document root exists
+  ansible.builtin.file:
+    path: "{{ redcap_httpd_document_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: redcap_httpd_manage_vhost | bool
+
+- name: Ensure Apache SSL certificate directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ redcap_httpd_ssl_certificate_file | dirname }}"
+      mode: "0755"
+    - path: "{{ redcap_httpd_ssl_certificate_key_file | dirname }}"
+      mode: "0700"
+  when:
+    - redcap_httpd_manage_vhost | bool
+    - redcap_httpd_ssl_enabled | bool
+    - redcap_httpd_manage_self_signed_cert | bool
+
+- name: Check Apache SSL certificate
+  ansible.builtin.stat:
+    path: "{{ redcap_httpd_ssl_certificate_file }}"
+  register: redcap_httpd_ssl_certificate
+  when:
+    - redcap_httpd_manage_vhost | bool
+    - redcap_httpd_ssl_enabled | bool
+    - redcap_httpd_manage_self_signed_cert | bool
+
+- name: Check Apache SSL certificate key
+  ansible.builtin.stat:
+    path: "{{ redcap_httpd_ssl_certificate_key_file }}"
+  register: redcap_httpd_ssl_certificate_key
+  when:
+    - redcap_httpd_manage_vhost | bool
+    - redcap_httpd_ssl_enabled | bool
+    - redcap_httpd_manage_self_signed_cert | bool
+
+- name: Generate self-signed Apache SSL certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -newkey
+      - rsa:2048
+      - -days
+      - "{{ redcap_httpd_self_signed_cert_days | string }}"
+      - -keyout
+      - "{{ redcap_httpd_ssl_certificate_key_file }}"
+      - -out
+      - "{{ redcap_httpd_ssl_certificate_file }}"
+      - -subj
+      - "{{ redcap_httpd_self_signed_cert_subject }}"
+  when:
+    - redcap_httpd_manage_vhost | bool
+    - redcap_httpd_ssl_enabled | bool
+    - redcap_httpd_manage_self_signed_cert | bool
+    - >-
+      not redcap_httpd_ssl_certificate.stat.exists | default(false)
+      or redcap_httpd_ssl_certificate.stat.size | default(0) | int == 0
+      or not redcap_httpd_ssl_certificate_key.stat.exists | default(false)
+      or redcap_httpd_ssl_certificate_key.stat.size | default(0) | int == 0
+  notify: Restart Apache HTTPD
+
+- name: Set Apache SSL certificate permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ redcap_httpd_ssl_certificate_file }}"
+      mode: "0644"
+    - path: "{{ redcap_httpd_ssl_certificate_key_file }}"
+      mode: "0600"
+  when:
+    - redcap_httpd_manage_vhost | bool
+    - redcap_httpd_ssl_enabled | bool
+    - redcap_httpd_manage_self_signed_cert | bool
+
+- name: Configure Apache REDCap virtual host
+  ansible.builtin.template:
+    src: redcap.conf.j2
+    dest: "{{ redcap_httpd_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: redcap_httpd_manage_vhost | bool
+  notify: Restart Apache HTTPD
+
+- name: Validate Apache HTTPD configuration
+  ansible.builtin.command: "{{ redcap_httpd_configtest_command }}"
+  changed_when: false
+  when: redcap_httpd_manage_vhost | bool
+
+- name: Start and enable Apache HTTPD
+  ansible.builtin.service:
+    name: "{{ redcap_httpd_service }}"
+    state: started
+    enabled: true

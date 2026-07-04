@@ -1,0 +1,230 @@
+---
+- name: Validate REDCap SQL operation
+  ansible.builtin.assert:
+    that:
+      - redcap_operation in ['install', 'upgrade']
+
+- name: Ensure REDCap SQL helper directory exists
+  ansible.builtin.file:
+    path: "{{ redcap_sql_extractor_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install REDCap SQL extractor
+  ansible.builtin.copy:
+    src: "{{ redcap_sql_extractor_local_path }}"
+    dest: "{{ redcap_sql_remote_extractor_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure REDCap SQL work directory exists
+  ansible.builtin.file:
+    path: "{{ redcap_sql_work_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Check for existing REDCap config table
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: "SHOW TABLES LIKE %s"
+    positional_args:
+      - "{{ redcap_sql_config_table_name }}"
+  register: redcap_sql_config_table_query
+  changed_when: false
+  when:
+    - redcap_operation == 'install'
+    - redcap_sql_skip_install_when_config_exists | bool
+
+- name: Record existing REDCap config table state
+  ansible.builtin.set_fact:
+    redcap_sql_config_table_exists: "{{ redcap_sql_config_table_query.query_result[0] | default([]) | length > 0 }}"
+  when:
+    - redcap_operation == 'install'
+    - redcap_sql_skip_install_when_config_exists | bool
+
+- name: Decide whether REDCap SQL should be requested
+  ansible.builtin.set_fact:
+    redcap_sql_should_run_sql: "{{ redcap_operation == 'upgrade' or not redcap_sql_config_table_exists | default(false) }}"
+    redcap_sql_noop_upgrade: false
+
+- name: Report existing REDCap install SQL state
+  ansible.builtin.debug:
+    msg: "REDCap config table already exists in {{ redcap_db_name }}; install SQL import is skipped."
+  when:
+    - redcap_operation == 'install'
+    - redcap_sql_config_table_exists | default(false)
+
+- name: Request REDCap install SQL page
+  ansible.builtin.uri:
+    url: "{{ redcap_sql_install_url }}"
+    method: POST
+    body_format: form-urlencoded
+    body: "{{ redcap_sql_install_form }}"
+    validate_certs: "{{ redcap_sql_validate_certs }}"
+    status_code: "{{ redcap_sql_status_codes }}"
+    return_content: true
+  register: redcap_sql_install_response
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_operation == 'install'
+
+- name: Request REDCap upgrade SQL page
+  ansible.builtin.uri:
+    url: "{{ redcap_sql_upgrade_url }}"
+    method: GET
+    validate_certs: "{{ redcap_sql_validate_certs }}"
+    status_code: "{{ redcap_sql_status_codes }}"
+    return_content: true
+  register: redcap_sql_upgrade_response
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_operation == 'upgrade'
+
+- name: Select REDCap SQL HTML response
+  ansible.builtin.set_fact:
+    redcap_sql_response_content: >-
+      {{
+        redcap_sql_install_response.content
+        if redcap_operation == 'install'
+        else redcap_sql_upgrade_response.content
+      }}
+  when: redcap_sql_should_run_sql | bool
+
+- name: Write REDCap SQL HTML response
+  ansible.builtin.copy:
+    dest: "{{ redcap_sql_html_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    content: "{{ redcap_sql_response_content }}"
+  when: redcap_sql_should_run_sql | bool
+
+- name: Fail when REDCap does not return install SQL
+  ansible.builtin.fail:
+    msg: >-
+      REDCap returned a missing {{ redcap_sql_config_table_name }} page instead
+      of install SQL from {{ redcap_sql_install_url }}. The response was saved
+      to {{ redcap_sql_html_path }}. Verify redcap_db_name, database.php, and
+      that this is a fresh install database, or rerun with the existing table
+      skip enabled.
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_operation == 'install'
+    - redcap_sql_response_content is search('Could not find.*' ~ redcap_sql_config_table_name, ignorecase=True)
+
+- name: Detect no-op REDCap upgrade response
+  ansible.builtin.set_fact:
+    redcap_sql_noop_upgrade: >-
+      {{
+        redcap_operation == 'upgrade'
+        and redcap_sql_allow_noop_upgrade | bool
+        and redcap_sql_response_content is search(redcap_sql_noop_upgrade_pattern, ignorecase=True)
+      }}
+  when: redcap_sql_should_run_sql | bool
+
+- name: Build REDCap SQL extractor arguments
+  ansible.builtin.set_fact:
+    redcap_sql_extractor_args:
+      - "{{ redcap_python_bin }}"
+      - "{{ redcap_sql_remote_extractor_path }}"
+      - --input
+      - "{{ redcap_sql_html_path }}"
+      - --output
+      - "{{ redcap_sql_output_path }}"
+      - --min-bytes
+      - "{{ redcap_sql_min_bytes | string }}"
+  when: redcap_sql_should_run_sql | bool
+
+- name: Add install SQL line filters
+  ansible.builtin.set_fact:
+    redcap_sql_extractor_args: "{{ redcap_sql_extractor_args + ['--drop-line-matching', item] }}"
+  loop: "{{ redcap_sql_drop_line_patterns }}"
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_operation == 'install'
+
+- name: Add upgrade SQL line filters
+  ansible.builtin.set_fact:
+    redcap_sql_extractor_args: "{{ redcap_sql_extractor_args + ['--drop-line-matching', item] }}"
+  loop: "{{ redcap_sql_upgrade_drop_line_patterns }}"
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_operation == 'upgrade'
+
+- name: Extract SQL from REDCap HTML
+  ansible.builtin.command:
+    argv: "{{ redcap_sql_extractor_args }}"
+  register: redcap_sql_extract_result
+  changed_when: redcap_sql_extract_result.rc == 0
+  failed_when:
+    - redcap_sql_extract_result.rc != 0
+    - not redcap_sql_noop_upgrade | bool
+  when: redcap_sql_should_run_sql | bool
+
+- name: Report no-op REDCap upgrade SQL
+  ansible.builtin.debug:
+    msg: "REDCap reports this upgrade is already applied; SQL import is skipped."
+  when:
+    - redcap_operation == 'upgrade'
+    - redcap_sql_noop_upgrade | bool
+    - redcap_sql_extract_result.rc != 0
+    - redcap_sql_should_run_sql | bool
+
+- name: Import REDCap SQL
+  ansible.mysql.mysql_db:
+    state: import
+    name: "{{ redcap_db_name }}"
+    target: "{{ redcap_sql_output_path }}"
+  async: "{{ redcap_sql_import_timeout }}"
+  poll: 0
+  register: redcap_sql_import_job
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_sql_extract_result.rc == 0
+
+- name: Wait for REDCap SQL import to complete
+  ansible.builtin.async_status:
+    jid: "{{ redcap_sql_import_job.ansible_job_id }}"
+  register: redcap_sql_import_status
+  until: redcap_sql_import_status.finished
+  retries: "{{ redcap_sql_import_retries }}"
+  delay: "{{ redcap_sql_import_delay }}"
+  when:
+    - redcap_sql_should_run_sql | bool
+    - redcap_sql_extract_result.rc == 0
+
+- name: Configure REDCap application settings
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      INSERT INTO redcap_config (field_name, value)
+      VALUES (%s, %s)
+      ON DUPLICATE KEY UPDATE value = VALUES(value)
+    positional_args:
+      - "{{ item.key }}"
+      - "{{ item.value | string }}"
+  loop: "{{ redcap_sql_config_values | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when:
+    - redcap_sql_manage_redcap_config | bool
+    - redcap_sql_config_values | length > 0
+    - redcap_operation == 'upgrade'
+      or redcap_sql_config_table_exists | default(false)
+      or redcap_sql_extract_result.rc | default(1) == 0
+
+- name: Remove temporary REDCap SQL files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ redcap_sql_html_path }}"
+    - "{{ redcap_sql_output_path }}"
+  when:
+    - redcap_sql_cleanup | bool
+    - redcap_sql_should_run_sql | bool

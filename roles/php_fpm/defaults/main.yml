@@ -1,0 +1,41 @@
+---
+redcap_php_packages:
+  - php
+  - php-pear
+  - php-common
+  - php-cli
+  - php-curl
+  - php-pdo
+  - php-gd
+  - php-mbstring
+  - php-mysqlnd
+  - php-devel
+  - php-fpm
+  - php-process
+  - php-xml
+  - php-pecl-zip
+
+redcap_php_install_optional_packages: false
+redcap_php_optional_packages:
+  - php-pecl-imagick
+
+redcap_php_ini_path: /etc/php.ini
+redcap_php_fpm_pool_conf_path: /etc/php-fpm.d/www.conf
+redcap_php_fpm_service: php-fpm
+redcap_httpd_service: httpd
+
+redcap_php_ini_settings:
+  expose_php: "Off"
+  upload_max_filesize: "256M"
+  memory_limit: "512M"
+  post_max_size: "256M"
+  date.timezone: "Europe/London"
+  error_log: "syslog"
+  max_input_vars: "200000"
+  mail.log: "syslog"
+  session.cookie_secure: "on"
+
+redcap_php_fpm_pool_settings:
+  listen.owner: apache
+  listen.group: apache
+  listen.mode: "0660"

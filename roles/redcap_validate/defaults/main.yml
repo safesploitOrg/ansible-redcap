@@ -1,0 +1,22 @@
+---
+redcap_validate_services:
+  - httpd
+  - php-fpm
+  - mariadb
+
+redcap_validate_paths:
+  - "{{ redcap_web_root }}"
+  - "{{ redcap_database_php_path }}"
+  - "{{ redcap_data_path }}"
+
+redcap_validate_http: true
+redcap_validate_http_url: https://localhost/index.php
+redcap_validate_http_status_codes:
+  - 200
+  - 301
+  - 302
+  - 403
+redcap_validate_http_certs: false
+
+redcap_validate_database: true
+redcap_validate_database_query: "select 1"

@@ -1,0 +1,19 @@
+---
+redcap_mariadb_packages:
+  - mariadb-server
+  - python3-PyMySQL
+
+redcap_mariadb_service: mariadb
+redcap_mariadb_login_unix_socket: /var/lib/mysql/mysql.sock
+redcap_mariadb_root_cnf_path: /root/.my.cnf
+redcap_mariadb_redcap_cnf_path: /etc/my.cnf.d/redcap.cnf
+
+redcap_mariadb_server_settings:
+  max_allowed_packet: 1G
+  optimizer_switch: rowid_filter=OFF
+  query_cache_limit: "16777216"
+  query_cache_size: "16777216"
+  query_cache_type: "1"
+
+redcap_generate_missing_secrets: true
+redcap_db_privileges: "{{ redcap_db_name }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,DROP,INDEX,REFERENCES,CREATE TEMPORARY TABLES,LOCK TABLES"

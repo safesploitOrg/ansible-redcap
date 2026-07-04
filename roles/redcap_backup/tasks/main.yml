@@ -1,0 +1,113 @@
+---
+- name: Get REDCap backup timestamp
+  ansible.builtin.command: "{{ redcap_backup_timestamp_command }}"
+  register: redcap_backup_timestamp
+  changed_when: false
+
+- name: Discover REDCap database name
+  ansible.builtin.command:
+    argv:
+      - mysql
+      - -NBe
+      - show databases like 'redcap%';
+  register: redcap_discovered_db_name
+  changed_when: false
+  when: redcap_discover_db_name | bool
+
+- name: Use discovered REDCap database name
+  ansible.builtin.set_fact:
+    redcap_db_name: "{{ redcap_discovered_db_name.stdout_lines[0] }}"
+  when:
+    - redcap_discover_db_name | bool
+    - redcap_discovered_db_name.stdout_lines | default([]) | length > 0
+
+- name: Set REDCap backup paths
+  ansible.builtin.set_fact:
+    redcap_backup_sql_path: "{{ redcap_backup_prefix }}-{{ redcap_db_name }}-{{ redcap_backup_timestamp.stdout }}.sql"
+    redcap_backup_web_path: "{{ redcap_backup_prefix }}-{{ redcap_db_name }}-{{ redcap_backup_timestamp.stdout }}-web.tar.gz"
+    redcap_backup_data_path: "{{ redcap_backup_prefix }}-{{ redcap_db_name }}-{{ redcap_backup_timestamp.stdout }}-data.tar.gz"
+
+- name: Check REDCap backup source paths
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop:
+    - name: web root
+      path: "{{ redcap_web_root }}"
+      required: "{{ redcap_backup_web_enabled }}"
+    - name: data path
+      path: "{{ redcap_data_path }}"
+      required: "{{ redcap_backup_data_enabled and redcap_backup_data_required }}"
+  register: redcap_backup_source_stats
+
+- name: Validate REDCap backup source paths
+  ansible.builtin.assert:
+    that:
+      - not item.item.required | bool or item.stat.exists | default(false)
+    fail_msg: "Required REDCap backup source is missing: {{ item.item.name }} at {{ item.item.path }}"
+  loop: "{{ redcap_backup_source_stats.results }}"
+
+- name: Dump REDCap database before upgrade
+  ansible.mysql.mysql_db:
+    state: dump
+    name: "{{ redcap_db_name }}"
+    target: "{{ redcap_backup_sql_path }}"
+  when: redcap_backup_db_enabled | bool
+
+- name: Archive REDCap web root before upgrade
+  community.general.archive:
+    path: "{{ redcap_web_root }}"
+    dest: "{{ redcap_backup_web_path }}"
+    format: gz
+  when: redcap_backup_web_enabled | bool
+
+- name: Archive REDCap data directory before upgrade
+  community.general.archive:
+    path: "{{ redcap_data_path }}"
+    dest: "{{ redcap_backup_data_path }}"
+    format: gz
+  when:
+    - redcap_backup_data_enabled | bool
+    - redcap_backup_source_stats.results[1].stat.exists | default(false)
+
+- name: Initialize expected backup path list
+  ansible.builtin.set_fact:
+    redcap_expected_backup_paths: []
+  when: redcap_backup_verify | bool
+
+- name: Track expected database backup
+  ansible.builtin.set_fact:
+    redcap_expected_backup_paths: "{{ redcap_expected_backup_paths + [redcap_backup_sql_path] }}"
+  when:
+    - redcap_backup_verify | bool
+    - redcap_backup_db_enabled | bool
+
+- name: Track expected web backup
+  ansible.builtin.set_fact:
+    redcap_expected_backup_paths: "{{ redcap_expected_backup_paths + [redcap_backup_web_path] }}"
+  when:
+    - redcap_backup_verify | bool
+    - redcap_backup_web_enabled | bool
+
+- name: Track expected data backup
+  ansible.builtin.set_fact:
+    redcap_expected_backup_paths: "{{ redcap_expected_backup_paths + [redcap_backup_data_path] }}"
+  when:
+    - redcap_backup_verify | bool
+    - redcap_backup_data_enabled | bool
+    - redcap_backup_source_stats.results[1].stat.exists | default(false)
+
+- name: Check generated REDCap backups
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ redcap_expected_backup_paths | default([]) }}"
+  register: redcap_generated_backup_stats
+  when: redcap_backup_verify | bool
+
+- name: Validate generated REDCap backups
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists | default(false)
+      - item.stat.size | int > 0
+    fail_msg: "Expected REDCap backup is missing or empty: {{ item.item }}"
+  loop: "{{ redcap_generated_backup_stats.results | default([]) }}"
+  when: redcap_backup_verify | bool

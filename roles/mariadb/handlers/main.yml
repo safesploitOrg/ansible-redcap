@@ -1,0 +1,5 @@
+---
+- name: Restart MariaDB
+  ansible.builtin.service:
+    name: "{{ redcap_mariadb_service }}"
+    state: restarted

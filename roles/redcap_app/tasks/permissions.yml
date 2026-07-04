@@ -1,0 +1,36 @@
+---
+- name: Apply REDCap tree read permissions
+  ansible.builtin.file:
+    path: "{{ redcap_web_root }}"
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_web_tree_mode }}"
+    recurse: true
+
+- name: Ensure REDCap writable directories exist
+  ansible.builtin.file:
+    path: "{{ redcap_web_root }}/{{ item }}"
+    state: directory
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_writable_dir_mode }}"
+  loop: "{{ redcap_runtime_dirs }}"
+
+- name: Ensure REDCap data directory exists
+  ansible.builtin.file:
+    path: "{{ redcap_data_path }}"
+    state: directory
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_writable_dir_mode }}"
+
+- name: Ensure REDCap external file upload directory exists
+  ansible.builtin.file:
+    path: "{{ redcap_edoc_path }}"
+    state: directory
+    owner: "{{ redcap_web_owner }}"
+    group: "{{ redcap_web_group }}"
+    mode: "{{ redcap_writable_dir_mode }}"
+  when:
+    - redcap_manage_external_edoc_path | bool
+    - redcap_edoc_path | length > 0

@@ -1,0 +1,37 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Validate REDCap services are running
+  ansible.builtin.assert:
+    that:
+      - item ~ '.service' in ansible_facts.services
+      - ansible_facts.services.get(item ~ '.service', {}).state | default('missing') == 'running'
+    fail_msg: "Expected service is not running: {{ item }}"
+  loop: "{{ redcap_validate_services }}"
+
+- name: Check REDCap filesystem paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ redcap_validate_paths }}"
+  register: redcap_validate_path_stats
+
+- name: Validate REDCap filesystem paths exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists | default(false)
+    fail_msg: "Expected REDCap path is missing: {{ item.item }}"
+  loop: "{{ redcap_validate_path_stats.results }}"
+
+- name: Validate REDCap HTTP endpoint
+  ansible.builtin.uri:
+    url: "{{ redcap_validate_http_url }}"
+    validate_certs: "{{ redcap_validate_http_certs }}"
+    status_code: "{{ redcap_validate_http_status_codes }}"
+  when: redcap_validate_http | bool
+
+- name: Validate REDCap database connection
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: "{{ redcap_validate_database_query }}"
+  when: redcap_validate_database | bool

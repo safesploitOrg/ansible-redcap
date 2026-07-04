@@ -1,0 +1,37 @@
+---
+redcap_operation: install
+
+redcap_web_parent_dir: /var/www/html
+redcap_web_root: "{{ redcap_web_parent_dir }}/redcap"
+redcap_database_php_path: "{{ redcap_web_root }}/database.php"
+redcap_database_php_backup_path: /tmp/redcap-database.php
+redcap_data_path: /data
+redcap_edoc_path: "{{ redcap_data_path }}/edocs"
+
+redcap_web_owner: root
+redcap_web_group: apache
+redcap_web_file_mode: "0640"
+redcap_web_tree_mode: u=rwX,g=rX
+redcap_writable_dir_mode: "0770"
+
+redcap_runtime_dirs:
+  - edocs
+  - modules
+  - temp
+redcap_manage_external_edoc_path: true
+
+redcap_cron_enabled: true
+redcap_cron_user: apache
+redcap_cron_job: "/usr/bin/php {{ redcap_web_root }}/cron.php > /dev/null"
+
+redcap_generate_missing_secrets: true
+redcap_write_install_details: true
+redcap_write_sensitive_install_details: true
+redcap_install_details_dir: /root/.redcap
+redcap_install_details_path: "{{ redcap_install_details_dir }}/redcap-install-details.txt"
+redcap_install_details_dir_mode: "0700"
+redcap_install_details_file_mode: "0600"
+redcap_install_details_owner: root
+redcap_install_details_group: root
+
+redcap_remove_old_versions: true

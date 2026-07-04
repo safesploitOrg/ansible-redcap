@@ -1,0 +1,40 @@
+---
+redcap_httpd_packages:
+  - httpd
+  - mod_ssl
+  - openssl
+
+redcap_httpd_install_certbot: false
+redcap_httpd_certbot_packages:
+  - certbot
+  - python3-certbot-apache
+
+redcap_httpd_service: httpd
+
+redcap_httpd_manage_vhost: true
+redcap_httpd_conf_path: /etc/httpd/conf.d/redcap.conf
+redcap_httpd_configtest_command: apachectl configtest
+
+redcap_web_parent_dir: /var/www/html
+redcap_web_root: "{{ redcap_web_parent_dir }}/redcap"
+
+redcap_httpd_server_name: "{{ (redcap_fqdn | default(inventory_hostname)) | regex_replace(':.*$', '') }}"
+redcap_httpd_server_aliases:
+  - localhost
+redcap_httpd_canonical_url: "https://{{ redcap_fqdn | default(redcap_httpd_server_name) }}/"
+redcap_httpd_document_root: "{{ redcap_web_root }}"
+redcap_httpd_directory_options: FollowSymLinks
+redcap_httpd_allow_override: All
+
+# REDCap HTTPD SSL Configuration (redcap.conf.j2)
+redcap_httpd_ssl_enabled: true
+redcap_httpd_redirect_http_to_https: false
+# redcap_httpd_redirect_http_to_https: true
+redcap_httpd_ssl_certificate_file: /etc/pki/tls/certs/localhost.crt
+redcap_httpd_ssl_certificate_key_file: /etc/pki/tls/private/localhost.key
+redcap_httpd_manage_self_signed_cert: true
+redcap_httpd_self_signed_cert_days: 3650
+redcap_httpd_self_signed_cert_subject: "/CN={{ redcap_httpd_server_name }}"
+
+redcap_httpd_php_fpm_socket: /run/php-fpm/www.sock
+redcap_httpd_php_handler: "proxy:unix:{{ redcap_httpd_php_fpm_socket }}|fcgi://localhost"

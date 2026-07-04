@@ -1,0 +1,109 @@
+---
+- name: Install MariaDB packages
+  ansible.builtin.dnf:
+    name: "{{ redcap_mariadb_packages }}"
+    state: present
+
+- name: Configure MariaDB settings for REDCap
+  ansible.builtin.copy:
+    dest: "{{ redcap_mariadb_redcap_cnf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [mysqld]
+      {% for key, value in redcap_mariadb_server_settings.items() %}
+      {{ key }}={{ value }}
+      {% endfor %}
+  notify: Restart MariaDB
+
+- name: Start and enable MariaDB
+  ansible.builtin.service:
+    name: "{{ redcap_mariadb_service }}"
+    state: started
+    enabled: true
+
+- name: Generate MariaDB root password when missing
+  ansible.builtin.set_fact:
+    redcap_mysql_root_password: "{{ lookup('community.general.random_string', length=24, special=false) }}"
+  when:
+    - redcap_generate_missing_secrets | bool
+    - redcap_mysql_root_password is not defined or redcap_mysql_root_password | length == 0
+  no_log: true
+
+- name: Generate REDCap database password when missing
+  ansible.builtin.set_fact:
+    redcap_db_password: "{{ lookup('community.general.random_string', length=24, special=false) }}"
+  when:
+    - redcap_generate_missing_secrets | bool
+    - redcap_db_password is not defined or redcap_db_password | length == 0
+  no_log: true
+
+- name: Require MariaDB and REDCap database passwords
+  ansible.builtin.assert:
+    that:
+      - redcap_mysql_root_password is defined
+      - redcap_mysql_root_password | length > 0
+      - redcap_db_password is defined
+      - redcap_db_password | length > 0
+    fail_msg: >-
+      Database passwords are missing. Provide redcap_mysql_root_password and
+      redcap_db_password, or enable redcap_generate_missing_secrets for lab use.
+  no_log: true
+
+- name: Set MariaDB root password
+  ansible.mysql.mysql_user:
+    name: root
+    host: "{{ item }}"
+    password: "{{ redcap_mysql_root_password }}"
+    login_unix_socket: "{{ redcap_mariadb_login_unix_socket }}"
+    state: present
+  loop:
+    - 127.0.0.1
+    - ::1
+    - localhost
+  no_log: true
+
+- name: Write root MariaDB client configuration
+  ansible.builtin.copy:
+    dest: "{{ redcap_mariadb_root_cnf_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      [client]
+      user=root
+      password={{ redcap_mysql_root_password }}
+  no_log: true
+
+- name: Remove anonymous MariaDB users
+  ansible.mysql.mysql_user:
+    name: ""
+    host: "{{ item }}"
+    state: absent
+    login_unix_socket: "{{ redcap_mariadb_login_unix_socket }}"
+  loop:
+    - localhost
+    - "{{ ansible_facts.nodename }}"
+
+- name: Remove MariaDB test database
+  ansible.mysql.mysql_db:
+    name: test
+    state: absent
+    login_unix_socket: "{{ redcap_mariadb_login_unix_socket }}"
+
+- name: Create REDCap database
+  ansible.mysql.mysql_db:
+    name: "{{ redcap_db_name }}"
+    state: present
+    login_unix_socket: "{{ redcap_mariadb_login_unix_socket }}"
+
+- name: Create REDCap database user
+  ansible.mysql.mysql_user:
+    name: "{{ redcap_db_user }}"
+    password: "{{ redcap_db_password }}"
+    host: localhost
+    priv: "{{ redcap_db_privileges }}"
+    state: present
+    login_unix_socket: "{{ redcap_mariadb_login_unix_socket }}"
+  no_log: true

@@ -1,0 +1,10 @@
+---
+redcap_backup_prefix: /root/redcap
+redcap_backup_timestamp_command: "date +%Y-%m-%d_%H-%M-%S"
+redcap_backup_web_enabled: true
+redcap_backup_data_enabled: true
+redcap_backup_data_required: true
+redcap_backup_db_enabled: true
+redcap_backup_verify: true
+
+redcap_discover_db_name: false

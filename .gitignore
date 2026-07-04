@@ -1,0 +1,8 @@
+/.cache/
+/collections/
+__pycache__/
+*.retry
+*.log
+*.tmp
+vault.yml
+vault.yml.*

@@ -1,0 +1,6 @@
+---
+redcap_security_manage_permissions: true
+redcap_security_manage_selinux: true
+redcap_security_restorecon_paths:
+  - "{{ redcap_web_root }}"
+  - "{{ redcap_data_path }}"

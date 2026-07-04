@@ -1,0 +1,35 @@
+---
+- name: Resolve local REDCap artifact in private integration workspace
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    redcap_operation: install
+    redcap_artifact_provider: local
+    redcap_artifact_base_dir: "{{ playbook_dir }}/../../artefacts"
+    redcap_install_artifact_dir: "{{ redcap_artifact_base_dir }}/install"
+    redcap_upgrade_artifact_dir: "{{ redcap_artifact_base_dir }}/upgrade"
+    redcap_install_version: latest
+    redcap_upgrade_version: latest
+    redcap_artifact_workspace: "{{ lookup('env', 'TMPDIR') | default('/tmp', true) }}/redcap-artifact-test"
+    redcap_artifact_owner: "{{ lookup('env', 'USER') }}"
+    redcap_artifact_group: "{{ lookup('pipe', 'id -gn') }}"
+    redcap_artifact_test_cleanup: true
+
+  tasks:
+    - name: Resolve artifact
+      ansible.builtin.import_role:
+        name: redcap_artifact
+
+    - name: Validate latest private artifact resolution
+      ansible.builtin.assert:
+        that:
+          - redcap_artifact_resolved_path is defined
+          - redcap_artifact_resolved_version is version('0.0.0', '>')
+
+    - name: Remove copied artifact test workspace
+      ansible.builtin.file:
+        path: "{{ redcap_artifact_workspace }}"
+        state: absent
+      when: redcap_artifact_test_cleanup | bool

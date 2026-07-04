@@ -1,0 +1,55 @@
+---
+redcap_operation: install
+
+redcap_python_bin: /usr/bin/python3
+redcap_sql_extractor_local_path: "{{ playbook_dir }}/../scripts/extract-redcap-sql.py"
+redcap_sql_extractor_dir: /usr/local/libexec/redcap
+redcap_sql_remote_extractor_path: "{{ redcap_sql_extractor_dir }}/extract-redcap-sql.py"
+
+redcap_sql_work_dir: /tmp/redcap-sql
+redcap_sql_html_path: "{{ redcap_sql_work_dir }}/{{ redcap_operation }}.html"
+redcap_sql_output_path: "{{ redcap_sql_work_dir }}/{{ redcap_operation }}.sql"
+redcap_sql_min_bytes: 20
+redcap_sql_cleanup: false
+redcap_sql_config_table_name: redcap_config
+redcap_sql_skip_install_when_config_exists: true
+
+redcap_sql_install_url: https://localhost/install.php?sql=1
+redcap_sql_upgrade_url: https://localhost/upgrade.php
+redcap_sql_validate_certs: false
+redcap_sql_status_codes:
+  - 200
+
+redcap_sql_import_timeout: 3600
+redcap_sql_import_retries: 360
+redcap_sql_import_delay: 10
+
+redcap_sql_install_form:
+  redcap_base_url: "https://{{ redcap_fqdn }}/"
+  homepage_contact: "{{ redcap_admin_name }}"
+  homepage_contact_email: "{{ redcap_admin_email }}"
+  project_contact_name: "{{ redcap_admin_name }}"
+  institution: "{{ redcap_institution }}"
+
+redcap_sql_drop_line_patterns: []
+redcap_sql_upgrade_drop_line_patterns:
+  - USERNAME
+redcap_sql_allow_noop_upgrade: true
+redcap_sql_noop_upgrade_pattern: "Already upgraded!|already upgraded to version|nothing to do here"
+
+redcap_data_path: /data
+redcap_edoc_path: "{{ redcap_data_path }}/edocs"
+redcap_sql_manage_redcap_config: true
+redcap_sql_config_values:
+  admin_email: "{{ redcap_admin_email }}"
+  do_not_reply_email: "{{ redcap_global_email }}"
+  edoc_path: "{{ redcap_edoc_path }}"
+  edoc_storage_option: "0"
+  from_email: "{{ redcap_global_email }}"
+  homepage_contact: "{{ redcap_admin_name }}"
+  homepage_contact_email: "{{ redcap_admin_email }}"
+  institution: "{{ redcap_institution }}"
+  project_contact_email: "{{ redcap_admin_email }}"
+  project_contact_name: "{{ redcap_admin_name }}"
+  redcap_base_url: "https://{{ redcap_fqdn }}/"
+  redcap_survey_base_url: ""

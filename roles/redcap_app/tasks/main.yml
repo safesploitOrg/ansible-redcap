@@ -1,0 +1,15 @@
+---
+- name: Validate REDCap app operation
+  ansible.builtin.assert:
+    that:
+      - redcap_operation in ['install', 'upgrade']
+      - redcap_artifact_resolved_path is defined
+      - redcap_artifact_resolved_path | length > 0
+
+- name: Run REDCap install application tasks
+  ansible.builtin.include_tasks: install.yml
+  when: redcap_operation == 'install'
+
+- name: Run REDCap upgrade application tasks
+  ansible.builtin.include_tasks: upgrade.yml
+  when: redcap_operation == 'upgrade'

@@ -1,0 +1,10 @@
+---
+- name: Restart PHP-FPM
+  ansible.builtin.service:
+    name: "{{ redcap_php_fpm_service }}"
+    state: restarted
+
+- name: Restart Apache HTTPD
+  ansible.builtin.service:
+    name: "{{ redcap_httpd_service }}"
+    state: restarted

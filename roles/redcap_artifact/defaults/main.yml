@@ -1,0 +1,22 @@
+---
+redcap_operation: install
+
+redcap_artifact_provider: local
+redcap_artifact_base_dir: "{{ playbook_dir }}/../../artefacts"
+redcap_artifact_workspace: /opt/redcap-artifacts
+redcap_artifact_owner: root
+redcap_artifact_group: root
+redcap_artifact_mode: "0640"
+
+redcap_install_version: latest
+redcap_upgrade_version: latest
+redcap_install_artifact_dir: "{{ redcap_artifact_base_dir }}/install"
+redcap_upgrade_artifact_dir: "{{ redcap_artifact_base_dir }}/upgrade"
+
+redcap_install_artifact_url: ""
+redcap_upgrade_artifact_url: ""
+redcap_artifact_base_url: ""
+redcap_artifact_checksum: ""
+
+redcap_artifact_install_regex: "^redcap([0-9]+\\.[0-9]+\\.[0-9]+)\\.zip$"
+redcap_artifact_upgrade_regex: "^redcap([0-9]+\\.[0-9]+\\.[0-9]+)_upgrade\\.zip$"

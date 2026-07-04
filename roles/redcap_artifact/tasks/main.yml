@@ -1,0 +1,218 @@
+---
+- name: Validate REDCap artifact operation
+  ansible.builtin.assert:
+    that:
+      - redcap_operation in ['install', 'upgrade']
+      - redcap_artifact_provider in ['local', 'filesystem', 'url']
+
+- name: Select artifact inputs for operation
+  ansible.builtin.set_fact:
+    redcap_artifact_selected_version: "{{ redcap_install_version if redcap_operation == 'install' else redcap_upgrade_version }}"
+    redcap_artifact_selected_dir: "{{ redcap_install_artifact_dir if redcap_operation == 'install' else redcap_upgrade_artifact_dir }}"
+    redcap_artifact_selected_url: "{{ redcap_install_artifact_url if redcap_operation == 'install' else redcap_upgrade_artifact_url }}"
+    redcap_artifact_selected_regex: "{{ redcap_artifact_install_regex if redcap_operation == 'install' else redcap_artifact_upgrade_regex }}"
+    redcap_artifact_selected_suffix: "{{ '' if redcap_operation == 'install' else '_upgrade' }}"
+
+- name: Build explicit REDCap artifact filename
+  ansible.builtin.set_fact:
+    redcap_artifact_filename: "redcap{{ redcap_artifact_selected_version }}{{ redcap_artifact_selected_suffix }}.zip"
+  when: redcap_artifact_selected_version != 'latest'
+
+- name: Ensure remote artifact workspace exists
+  ansible.builtin.file:
+    path: "{{ redcap_artifact_workspace }}"
+    state: directory
+    owner: "{{ redcap_artifact_owner }}"
+    group: "{{ redcap_artifact_group }}"
+    mode: "0750"
+
+- name: Find local REDCap artifacts for latest selection
+  ansible.builtin.find:
+    paths: "{{ redcap_artifact_selected_dir }}"
+    patterns: "{{ redcap_artifact_selected_regex }}"
+    use_regex: true
+    file_type: file
+  delegate_to: localhost
+  become: false
+  register: redcap_artifact_local_candidates
+  when:
+    - redcap_artifact_provider == 'local'
+    - redcap_artifact_selected_version == 'latest'
+
+- name: Initialize local latest artifact tracking
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: ""
+    redcap_artifact_source_path: ""
+  when:
+    - redcap_artifact_provider == 'local'
+    - redcap_artifact_selected_version == 'latest'
+
+- name: Resolve latest local REDCap artifact
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: "{{ redcap_artifact_candidate_version }}"
+    redcap_artifact_source_path: "{{ item.path }}"
+  vars:
+    redcap_artifact_candidate_version: "{{ (item.path | basename | regex_search(redcap_artifact_selected_regex, '\\1')) | first }}"
+  loop: "{{ redcap_artifact_local_candidates.files | default([]) }}"
+  when:
+    - redcap_artifact_provider == 'local'
+    - redcap_artifact_selected_version == 'latest'
+    - redcap_artifact_latest_version | length == 0 or redcap_artifact_candidate_version is version(redcap_artifact_latest_version, '>')
+
+- name: Resolve explicit local REDCap artifact
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: "{{ redcap_artifact_selected_version }}"
+    redcap_artifact_source_path: "{{ redcap_artifact_selected_dir }}/{{ redcap_artifact_filename }}"
+  when:
+    - redcap_artifact_provider == 'local'
+    - redcap_artifact_selected_version != 'latest'
+
+- name: Check selected local REDCap artifact
+  ansible.builtin.stat:
+    path: "{{ redcap_artifact_source_path }}"
+  delegate_to: localhost
+  become: false
+  register: redcap_artifact_local_stat
+  when: redcap_artifact_provider == 'local'
+
+- name: Validate selected local REDCap artifact
+  ansible.builtin.assert:
+    that:
+      - redcap_artifact_source_path | length > 0
+      - redcap_artifact_local_stat.stat.exists | default(false)
+    fail_msg: "No matching local REDCap artifact was found in {{ redcap_artifact_selected_dir }}."
+  when: redcap_artifact_provider == 'local'
+
+- name: Copy local REDCap artifact to target
+  ansible.builtin.copy:
+    src: "{{ redcap_artifact_source_path }}"
+    dest: "{{ redcap_artifact_workspace }}/{{ redcap_artifact_source_path | basename }}"
+    owner: "{{ redcap_artifact_owner }}"
+    group: "{{ redcap_artifact_group }}"
+    mode: "{{ redcap_artifact_mode }}"
+  when: redcap_artifact_provider == 'local'
+
+- name: Find filesystem REDCap artifacts for latest selection
+  ansible.builtin.find:
+    paths: "{{ redcap_artifact_selected_dir }}"
+    patterns: "{{ redcap_artifact_selected_regex }}"
+    use_regex: true
+    file_type: file
+  register: redcap_artifact_filesystem_candidates
+  when:
+    - redcap_artifact_provider == 'filesystem'
+    - redcap_artifact_selected_version == 'latest'
+
+- name: Initialize filesystem latest artifact tracking
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: ""
+    redcap_artifact_source_path: ""
+  when:
+    - redcap_artifact_provider == 'filesystem'
+    - redcap_artifact_selected_version == 'latest'
+
+- name: Resolve latest filesystem REDCap artifact
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: "{{ redcap_artifact_candidate_version }}"
+    redcap_artifact_source_path: "{{ item.path }}"
+  vars:
+    redcap_artifact_candidate_version: "{{ (item.path | basename | regex_search(redcap_artifact_selected_regex, '\\1')) | first }}"
+  loop: "{{ redcap_artifact_filesystem_candidates.files | default([]) }}"
+  when:
+    - redcap_artifact_provider == 'filesystem'
+    - redcap_artifact_selected_version == 'latest'
+    - redcap_artifact_latest_version | length == 0 or redcap_artifact_candidate_version is version(redcap_artifact_latest_version, '>')
+
+- name: Resolve explicit filesystem REDCap artifact
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: "{{ redcap_artifact_selected_version }}"
+    redcap_artifact_source_path: "{{ redcap_artifact_selected_dir }}/{{ redcap_artifact_filename }}"
+  when:
+    - redcap_artifact_provider == 'filesystem'
+    - redcap_artifact_selected_version != 'latest'
+
+- name: Check selected filesystem REDCap artifact
+  ansible.builtin.stat:
+    path: "{{ redcap_artifact_source_path }}"
+  register: redcap_artifact_filesystem_stat
+  when: redcap_artifact_provider == 'filesystem'
+
+- name: Validate selected filesystem REDCap artifact
+  ansible.builtin.assert:
+    that:
+      - redcap_artifact_source_path | length > 0
+      - redcap_artifact_filesystem_stat.stat.exists | default(false)
+    fail_msg: "No matching filesystem REDCap artifact was found in {{ redcap_artifact_selected_dir }}."
+  when: redcap_artifact_provider == 'filesystem'
+
+- name: Copy filesystem REDCap artifact to target workspace
+  ansible.builtin.copy:
+    src: "{{ redcap_artifact_source_path }}"
+    dest: "{{ redcap_artifact_workspace }}/{{ redcap_artifact_source_path | basename }}"
+    remote_src: true
+    owner: "{{ redcap_artifact_owner }}"
+    group: "{{ redcap_artifact_group }}"
+    mode: "{{ redcap_artifact_mode }}"
+  when: redcap_artifact_provider == 'filesystem'
+
+- name: Resolve URL REDCap artifact version
+  ansible.builtin.set_fact:
+    redcap_artifact_latest_version: "{{ redcap_artifact_selected_version if redcap_artifact_selected_version != 'latest' else 'unknown' }}"
+    redcap_artifact_url: >-
+      {{
+        redcap_artifact_selected_url
+        if redcap_artifact_selected_url | length > 0
+        else redcap_artifact_base_url ~ redcap_artifact_filename
+      }}
+  when: redcap_artifact_provider == 'url'
+
+- name: Validate URL REDCap artifact inputs
+  ansible.builtin.assert:
+    that:
+      - redcap_artifact_url | length > 0
+      - redcap_artifact_selected_version != 'latest' or redcap_artifact_selected_url | length > 0
+    fail_msg: >-
+      URL provider needs either an explicit version with redcap_artifact_base_url
+      or an explicit redcap_install_artifact_url/redcap_upgrade_artifact_url.
+  when: redcap_artifact_provider == 'url'
+
+- name: Download URL REDCap artifact to target workspace
+  ansible.builtin.get_url:
+    url: "{{ redcap_artifact_url }}"
+    dest: "{{ redcap_artifact_workspace }}/{{ redcap_artifact_url | basename }}"
+    owner: "{{ redcap_artifact_owner }}"
+    group: "{{ redcap_artifact_group }}"
+    mode: "{{ redcap_artifact_mode }}"
+    checksum: "{{ redcap_artifact_checksum if redcap_artifact_checksum | length > 0 else omit }}"
+  when: redcap_artifact_provider == 'url'
+
+- name: Publish resolved REDCap artifact facts
+  ansible.builtin.set_fact:
+    redcap_artifact_resolved_path: >-
+      {{
+        redcap_artifact_workspace ~ '/' ~
+        (
+          redcap_artifact_source_path | basename
+          if redcap_artifact_provider in ['local', 'filesystem']
+          else redcap_artifact_url | basename
+        )
+      }}
+    redcap_artifact_resolved_version: "{{ redcap_artifact_latest_version }}"
+
+- name: Check resolved REDCap artifact on target
+  ansible.builtin.stat:
+    path: "{{ redcap_artifact_resolved_path }}"
+  register: redcap_artifact_resolved_stat
+
+- name: Validate resolved REDCap artifact on target
+  ansible.builtin.assert:
+    that:
+      - redcap_artifact_resolved_stat.stat.exists | default(false)
+      - redcap_artifact_resolved_stat.stat.size | int > 0
+    fail_msg: "Resolved REDCap artifact is missing or empty: {{ redcap_artifact_resolved_path }}"
+
+- name: Show resolved REDCap artifact
+  ansible.builtin.debug:
+    msg:
+      path: "{{ redcap_artifact_resolved_path }}"
+      version: "{{ redcap_artifact_resolved_version }}"

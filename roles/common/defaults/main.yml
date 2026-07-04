@@ -1,0 +1,20 @@
+---
+redcap_common_packages:
+  - cronie
+  - python3
+  - python3-PyMySQL
+  - unzip
+  - tar
+  - curl
+
+redcap_common_install_mail_transport: true
+redcap_common_mail_packages:
+  - postfix
+
+redcap_manage_hostname: true
+redcap_manage_hosts_file: true
+redcap_manage_common_services: true
+redcap_common_services:
+  - crond
+redcap_common_mail_services:
+  - postfix

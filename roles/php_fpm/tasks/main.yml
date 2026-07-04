@@ -1,0 +1,42 @@
+---
+- name: Install PHP-FPM packages
+  ansible.builtin.dnf:
+    name: "{{ redcap_php_packages }}"
+    state: present
+  notify: Restart Apache HTTPD
+
+- name: Install optional PHP packages
+  ansible.builtin.dnf:
+    name: "{{ redcap_php_optional_packages }}"
+    state: present
+  when: redcap_php_install_optional_packages | bool
+  notify: Restart Apache HTTPD
+
+- name: Configure php.ini settings for REDCap
+  ansible.builtin.lineinfile:
+    path: "{{ redcap_php_ini_path }}"
+    regexp: "^;?{{ item.key | regex_escape }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ redcap_php_ini_settings | dict2items }}"
+  notify: Restart PHP-FPM
+
+- name: Configure PHP-FPM pool socket settings
+  ansible.builtin.lineinfile:
+    path: "{{ redcap_php_fpm_pool_conf_path }}"
+    regexp: "^;?{{ item.key | regex_escape }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ redcap_php_fpm_pool_settings | dict2items }}"
+  notify: Restart PHP-FPM
+
+- name: Disable PHP-FPM pool socket ACL users
+  ansible.builtin.lineinfile:
+    path: "{{ redcap_php_fpm_pool_conf_path }}"
+    regexp: "^listen\\.acl_users\\s*="
+    line: ";listen.acl_users = apache,nginx"
+  notify: Restart PHP-FPM
+
+- name: Start and enable PHP-FPM
+  ansible.builtin.service:
+    name: "{{ redcap_php_fpm_service }}"
+    state: started
+    enabled: true

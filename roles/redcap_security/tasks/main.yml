@@ -1,0 +1,29 @@
+---
+- name: Reapply REDCap filesystem permissions
+  ansible.builtin.import_role:
+    name: redcap_app
+    tasks_from: permissions
+  when: redcap_security_manage_permissions | bool
+
+- name: Check for restorecon
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/test
+      - -x
+      - /sbin/restorecon
+  register: redcap_restorecon_exists
+  changed_when: false
+  failed_when: false
+  when: redcap_security_manage_selinux | bool
+
+- name: Restore SELinux contexts for REDCap paths
+  ansible.builtin.command:
+    argv:
+      - /sbin/restorecon
+      - -R
+      - "{{ item }}"
+  loop: "{{ redcap_security_restorecon_paths }}"
+  changed_when: false
+  when:
+    - redcap_security_manage_selinux | bool
+    - redcap_restorecon_exists.rc | default(1) == 0

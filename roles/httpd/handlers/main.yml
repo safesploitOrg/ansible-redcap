@@ -1,0 +1,5 @@
+---
+- name: Restart Apache HTTPD
+  ansible.builtin.service:
+    name: "{{ redcap_httpd_service }}"
+    state: restarted

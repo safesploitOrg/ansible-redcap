@@ -1,0 +1,53 @@
+---
+- name: Roll back REDCap from explicit backups
+  hosts: redcap
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Confirm rollback guardrails
+      ansible.builtin.assert:
+        that:
+          - redcap_allow_rollback | bool
+          - redcap_environment != 'production' or redcap_allow_production | bool
+          - redcap_restore_db_dump is defined
+          - redcap_restore_web_archive is defined
+        fail_msg: >-
+          Refusing rollback. Set redcap_allow_rollback=true and provide
+          redcap_restore_db_dump and redcap_restore_web_archive. Production
+          rollbacks also require redcap_allow_production=true.
+
+  tasks:
+    - name: Stop web services before rollback
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - httpd
+        - php-fpm
+
+    - name: Restore REDCap web archive
+      ansible.builtin.unarchive:
+        src: "{{ redcap_restore_web_archive }}"
+        dest: "{{ redcap_web_parent_dir }}"
+        remote_src: true
+        owner: root
+        group: apache
+
+    - name: Restore REDCap database
+      ansible.mysql.mysql_db:
+        state: import
+        name: "{{ redcap_db_name }}"
+        target: "{{ redcap_restore_db_dump }}"
+
+    - name: Start web services after rollback
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - php-fpm
+        - httpd
+
+    - name: Validate restored REDCap instance
+      ansible.builtin.import_role:
+        name: redcap_validate

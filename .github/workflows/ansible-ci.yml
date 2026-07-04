@@ -1,0 +1,42 @@
+---
+name: Ansible CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: python -m pip install --upgrade ansible ansible-lint
+
+      - name: Install Ansible collections
+        working-directory: ansible-redcap
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Run ansible-lint
+        working-directory: ansible-redcap
+        run: ansible-lint
+
+      - name: Run syntax checks
+        working-directory: ansible-redcap
+        run: |
+          ansible-playbook playbooks/redcap-install.yml --syntax-check
+          ansible-playbook playbooks/redcap-upgrade.yml --syntax-check
+          ansible-playbook playbooks/redcap-validate.yml --syntax-check
+
+      - name: Test SQL extractor
+        working-directory: ansible-redcap
+        run: |
+          python scripts/extract-redcap-sql.py \
+            --input tests/fixtures/redcap-install-sql.html \
+            --output /tmp/redcap-install.sql \
+            --min-bytes 20
+          grep -q "CREATE TABLE redcap_config" /tmp/redcap-install.sql

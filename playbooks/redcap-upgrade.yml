@@ -1,0 +1,44 @@
+---
+- name: Upgrade REDCap
+  hosts: redcap
+  become: true
+  gather_facts: true
+  vars:
+    redcap_operation: upgrade
+  pre_tasks:
+    - name: Confirm upgrade guardrails
+      ansible.builtin.assert:
+        that:
+          - redcap_allow_upgrade | bool
+          - redcap_environment != 'production' or redcap_allow_production | bool
+        fail_msg: >-
+          Refusing to upgrade REDCap. Set redcap_allow_upgrade=true and keep
+          redcap_environment non-production unless redcap_allow_production=true
+          is explicitly set.
+
+    - name: Check existing REDCap application path
+      ansible.builtin.stat:
+        path: "{{ redcap_web_root }}"
+      register: redcap_upgrade_app_path
+
+    - name: Check existing REDCap database.php
+      ansible.builtin.stat:
+        path: "{{ redcap_database_php_path }}"
+      register: redcap_upgrade_database_php
+
+    - name: Validate upgrade prerequisites
+      ansible.builtin.assert:
+        that:
+          - redcap_upgrade_app_path.stat.isdir | default(false)
+          - redcap_upgrade_database_php.stat.exists | default(false)
+        fail_msg: >-
+          Refusing to upgrade because the existing REDCap path or database.php
+          was not found.
+
+  roles:
+    - role: redcap_artifact
+    - role: redcap_backup
+    - role: redcap_app
+    - role: redcap_sql
+    - role: redcap_security
+    - role: redcap_validate

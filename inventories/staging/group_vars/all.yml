@@ -1,0 +1,44 @@
+---
+# REDCap Environment Configuration
+# Subdomain for REDCap instance, e.g. "lab" for redcap-lab.example.test
+redcap_environment: lab
+redcap_org_domain: example.test
+
+redcap_allow_install: false
+redcap_allow_upgrade: false
+redcap_allow_rollback: false
+redcap_allow_production: false
+
+redcap_url_name: "{{ inventory_hostname }}"
+redcap_fqdn: "{{ redcap_url_name }}.{{ redcap_org_domain }}"
+
+redcap_admin_name: REDCap Admin
+redcap_admin_username: redcap_admin
+redcap_admin_email: "redcap-admin@{{ redcap_org_domain }}"
+redcap_institution: Example Institution
+redcap_global_email: "do-not-reply@{{ redcap_org_domain }}"
+
+redcap_db_host: localhost
+redcap_db_name: "{{ inventory_hostname | regex_replace('[^A-Za-z0-9_]', '_') }}"
+redcap_db_user: "{{ redcap_db_name }}_user"
+redcap_db_privileges: "{{ redcap_db_name }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,DROP,INDEX,REFERENCES,CREATE TEMPORARY TABLES,LOCK TABLES"
+
+redcap_web_parent_dir: /var/www/html
+redcap_web_root: "{{ redcap_web_parent_dir }}/redcap"
+redcap_database_php_path: "{{ redcap_web_root }}/database.php"
+redcap_data_path: /data
+
+redcap_artifact_provider: local
+redcap_artifact_base_dir: "{{ playbook_dir }}/../../artefacts"
+redcap_install_version: latest
+redcap_upgrade_version: latest
+redcap_install_artifact_dir: "{{ redcap_artifact_base_dir }}/install"
+redcap_upgrade_artifact_dir: "{{ redcap_artifact_base_dir }}/upgrade"
+
+redcap_write_install_details: true
+redcap_write_sensitive_install_details: true
+redcap_install_details_dir: /root/.redcap
+redcap_install_details_path: "{{ redcap_install_details_dir }}/redcap-install-details.txt"
+
+# REDCap HTTPD SSL Configuration (redcap.conf.j2)
+# OVERRIDES
