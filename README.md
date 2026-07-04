@@ -120,20 +120,28 @@ redcap_artifact_base_dir: "{{ playbook_dir }}/../../artefacts"
 
 ### Artefact layout
 
-```text
-REDCap install and upgrade ZIP files are expected under the artefacts directory, for example:
+The playbooks look for REDCap ZIP files under the parent artefacts directory. In this layout, the default path resolves to the sibling directory next to the Git checkout, so the structure is similar to /ansible-redcap/ alongside /artefacts/:
 
 ```text
-artefacts/
+/artefacts/
 ├── install/
 │   ├── redcap17.2.1.zip
 │   └── redcap17.0.0.zip
 └── upgrade/
     ├── redcap17.2.1_upgrade.zip
     └── redcap17.0.0_upgrade.zip
+
+/ansible-redcap/
+├── playbooks/
+├── roles/
+├── inventories/
+├── docs/
+└── ...
 ```
 
-### Override Artefact Path  
+This matches the default value in the role defaults, where `redcap_artifact_base_dir` points to the parent `artefacts` directory.
+
+### Override Artefact Path
 
 ```bash
 ansible-playbook playbooks/redcap-install.yml \
