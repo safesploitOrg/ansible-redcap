@@ -35,10 +35,56 @@
           Refusing to upgrade because the existing REDCap path or database.php
           was not found.
 
-  roles:
-    - role: redcap_artifact
-    - role: redcap_backup
-    - role: redcap_app
-    - role: redcap_sql
-    - role: redcap_security
-    - role: redcap_validate
+  # Restore roles, create a maintanence mode role, and add a task to enable maintenance mode before the upgrade and disable it after the upgrade.
+  # The maintenance mode role should have a variable to control whether it is enabled or disabled.
+  # roles:
+  #   - role: redcap_artifact
+  #   - role: redcap_backup
+  #   - role: redcap_app
+  #   - role: redcap_sql
+  #   - role: redcap_security
+  #   - role: redcap_validate
+
+  tasks:
+    - name: Run REDCap upgrade workflow
+      block:
+        - name: Enable REDCap maintenance mode
+          ansible.builtin.import_role:
+            name: redcap_maintenance
+          vars:
+            redcap_maintenance_state: offline
+          when: redcap_maintenance_during_upgrade | default(true) | bool
+
+        - name: Resolve REDCap upgrade artifact
+          ansible.builtin.import_role:
+            name: redcap_artifact
+
+        - name: Back up REDCap before upgrade
+          ansible.builtin.import_role:
+            name: redcap_backup
+
+        - name: Upgrade REDCap application files
+          ansible.builtin.import_role:
+            name: redcap_app
+
+        - name: Apply REDCap upgrade SQL
+          ansible.builtin.import_role:
+            name: redcap_sql
+
+        - name: Apply REDCap security controls
+          ansible.builtin.import_role:
+            name: redcap_security
+
+        - name: Validate REDCap after upgrade
+          ansible.builtin.import_role:
+            name: redcap_validate
+
+      always:
+        - name: Disable REDCap maintenance mode
+          ansible.builtin.import_role:
+            name: redcap_maintenance
+          vars:
+            redcap_maintenance_state: online
+          when:
+            - redcap_maintenance_during_upgrade | default(true) | bool
+            - redcap_maintenance_restore_after_upgrade | default(true) | bool

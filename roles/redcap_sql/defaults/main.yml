@@ -40,8 +40,10 @@ redcap_sql_noop_upgrade_pattern: "Already upgraded!|already upgraded to version|
 redcap_data_path: /data
 redcap_edoc_path: "{{ redcap_data_path }}/edocs"
 redcap_sql_manage_redcap_config: true
+redcap_auth_meth_global: table
 redcap_sql_config_values:
   admin_email: "{{ redcap_admin_email }}"
+  auth_meth_global: "{{ redcap_auth_meth_global }}"
   do_not_reply_email: "{{ redcap_global_email }}"
   edoc_path: "{{ redcap_edoc_path }}"
   edoc_storage_option: "0"

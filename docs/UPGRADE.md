@@ -1,6 +1,6 @@
 # Upgrade
 
-The upgrade workflow validates an existing REDCap installation, resolves an upgrade ZIP, takes backups, extracts the upgrade, restores `database.php`, imports the REDCap-generated upgrade SQL, reapplies permissions and validates the result.
+The upgrade workflow validates an existing REDCap installation, places REDCap into maintenance mode, resolves an upgrade ZIP, takes backups, extracts the upgrade, restores `database.php`, imports the REDCap-generated upgrade SQL, reapplies permissions, validates the result and then disables maintenance mode.
 
 ## Required Inputs
 
@@ -29,3 +29,11 @@ Before extraction, the role writes:
 - data archive: `/root/redcap-<db>-<date>-data.tar.gz`
 
 The data backup is required by default. Set `redcap_backup_data_required=false` only for test systems where the data directory is intentionally absent.
+
+## Maintenance Mode
+
+Upgrade maintenance mode is enabled by default. Override these variables if needed:
+
+- `redcap_maintenance_during_upgrade=false`
+- `redcap_maintenance_restore_after_upgrade=false`
+- `redcap_maintenance_message="Custom message"`

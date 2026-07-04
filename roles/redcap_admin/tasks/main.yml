@@ -1,0 +1,142 @@
+---
+- name: Validate REDCap admin inputs
+  ansible.builtin.assert:
+    that:
+      - redcap_admin_username is defined
+      - redcap_admin_username | length > 0
+      - redcap_admin_email is defined
+      - redcap_admin_email | length > 0
+      - not redcap_admin_manage_password | bool or redcap_admin_password is defined
+      - not redcap_admin_manage_password | bool or redcap_admin_password | length > 0
+    fail_msg: >-
+      REDCap admin account settings are incomplete. Provide redcap_admin_username,
+      redcap_admin_email, and redcap_admin_password when password management is enabled.
+  no_log: "{{ redcap_admin_hide_sensitive_logs | bool }}"
+  when: redcap_admin_manage | bool
+
+- name: Ensure REDCap superuser information exists
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      INSERT INTO redcap_user_information
+        (username, user_email, user_firstname, user_lastname, super_user,
+         account_manager, access_system_config, access_system_upgrade,
+         access_external_module_install, admin_rights, access_admin_dashboards,
+         user_creation, user_firstvisit, allow_create_db)
+      VALUES
+        (%s, %s, %s, %s, 1, 1, 1, 1, 1, 1, 1, NOW(), NOW(), 1)
+      ON DUPLICATE KEY UPDATE
+        user_email = VALUES(user_email),
+        user_firstname = VALUES(user_firstname),
+        user_lastname = VALUES(user_lastname),
+        super_user = 1,
+        account_manager = 1,
+        access_system_config = 1,
+        access_system_upgrade = 1,
+        access_external_module_install = 1,
+        admin_rights = 1,
+        access_admin_dashboards = 1,
+        user_suspended_time = NULL,
+        user_expiration = NULL
+    positional_args:
+      - "{{ redcap_admin_username }}"
+      - "{{ redcap_admin_email }}"
+      - "{{ redcap_admin_first_name }}"
+      - "{{ redcap_admin_last_name }}"
+  when: redcap_admin_manage | bool
+
+- name: Ensure REDCap table-auth row exists for superuser
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      INSERT IGNORE INTO redcap_auth
+        (username, password, password_salt, legacy_hash, temp_pwd)
+      VALUES
+        (%s, '', '', 0, 1)
+    positional_args:
+      - "{{ redcap_admin_username }}"
+  when:
+    - redcap_admin_manage | bool
+    - redcap_admin_manage_password | bool
+  no_log: "{{ redcap_admin_hide_sensitive_logs | bool }}"
+
+- name: Manage REDCap superuser password
+  block:
+    - name: Install REDCap password reset helper
+      ansible.builtin.copy:
+        src: "{{ redcap_admin_password_reset_local_path }}"
+        dest: "{{ redcap_admin_password_reset_remote_path }}"
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Reset REDCap superuser password
+      ansible.builtin.command:
+        argv:
+          - "{{ redcap_admin_php_bin }}"
+          - "{{ redcap_admin_password_reset_remote_path }}"
+          - "{{ redcap_admin_username }}"
+          - "{{ redcap_admin_password }}"
+        chdir: "{{ redcap_web_root }}"
+      register: redcap_admin_password_reset
+      changed_when: "'Password reset successfully' in redcap_admin_password_reset.stdout"
+      no_log: "{{ redcap_admin_hide_sensitive_logs | bool }}"
+
+  always:
+    - name: Remove REDCap password reset helper
+      ansible.builtin.file:
+        path: "{{ redcap_admin_password_reset_remote_path }}"
+        state: absent
+      when: redcap_admin_remove_password_reset_script | bool
+
+  when:
+    - redcap_admin_manage | bool
+    - redcap_admin_manage_password | bool
+
+- name: Revoke default REDCap site_admin superuser privileges
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      UPDATE redcap_user_information
+      SET super_user = 0,
+          account_manager = 0,
+          access_system_config = 0,
+          access_system_upgrade = 0,
+          access_external_module_install = 0,
+          admin_rights = 0,
+          access_admin_dashboards = 0
+      WHERE username = %s
+    positional_args:
+      - "{{ redcap_admin_default_site_admin_username }}"
+  when:
+    - redcap_admin_manage | bool
+    - redcap_admin_revoke_default_site_admin | bool
+    - redcap_admin_default_site_admin_username != redcap_admin_username
+
+- name: Validate REDCap superuser privileges
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      SELECT COUNT(*) AS admin_count
+      FROM redcap_user_information
+      WHERE username = %s
+        AND super_user = 1
+        AND account_manager = 1
+        AND access_system_config = 1
+        AND access_system_upgrade = 1
+        AND access_external_module_install = 1
+        AND admin_rights = 1
+        AND access_admin_dashboards = 1
+        AND user_suspended_time IS NULL
+    positional_args:
+      - "{{ redcap_admin_username }}"
+  register: redcap_admin_validate
+  changed_when: false
+  when: redcap_admin_manage | bool
+
+- name: Assert REDCap superuser is configured
+  ansible.builtin.assert:
+    that:
+      - redcap_admin_validate.query_result[0][0].admin_count | int == 1
+    fail_msg: "REDCap superuser {{ redcap_admin_username }} was not configured correctly."
+  when: redcap_admin_manage | bool

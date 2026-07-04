@@ -1,6 +1,7 @@
 # Install
 
 The install workflow provisions the LAMP dependencies, resolves a REDCap install ZIP, extracts it, configures `database.php`, imports the REDCap-generated SQL, applies permissions and validates the result.
+It also creates `redcap_admin_username` as a REDCap superuser and sets `redcap_admin_password` using REDCap's own password hashing code.
 
 ## Required Inputs
 

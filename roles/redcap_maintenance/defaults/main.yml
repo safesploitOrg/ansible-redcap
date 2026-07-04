@@ -1,0 +1,6 @@
+---
+redcap_maintenance_state: online
+redcap_maintenance_message: REDCap is temporarily unavailable for scheduled maintenance.
+redcap_maintenance_manage_message: true
+redcap_maintenance_during_upgrade: true
+redcap_maintenance_restore_after_upgrade: true

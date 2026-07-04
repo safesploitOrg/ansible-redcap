@@ -1,0 +1,27 @@
+---
+- name: Validate REDCap maintenance state
+  ansible.builtin.assert:
+    that:
+      - redcap_maintenance_state in ['online', 'offline']
+    fail_msg: "redcap_maintenance_state must be online or offline."
+
+- name: Set REDCap maintenance mode state
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      INSERT INTO redcap_config (field_name, value)
+      VALUES ('system_offline', %s)
+      ON DUPLICATE KEY UPDATE value = VALUES(value)
+    positional_args:
+      - "{{ '1' if redcap_maintenance_state == 'offline' else '0' }}"
+
+- name: Set REDCap maintenance mode message
+  ansible.mysql.mysql_query:
+    login_db: "{{ redcap_db_name }}"
+    query: >-
+      INSERT INTO redcap_config (field_name, value)
+      VALUES ('offline_message', %s)
+      ON DUPLICATE KEY UPDATE value = VALUES(value)
+    positional_args:
+      - "{{ redcap_maintenance_message }}"
+  when: redcap_maintenance_manage_message | bool

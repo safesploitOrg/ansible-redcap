@@ -24,6 +24,7 @@
     - role: php_fpm
     - role: redcap_app
     - role: redcap_sql
+    - role: redcap_admin
     - role: redcap_security
     - role: redcap_validate
 
@@ -34,10 +35,3 @@
     - name: Display REDCap FQDN
       ansible.builtin.debug:
         msg: "REDCap is accessible at https://{{ redcap_fqdn }}/"
-    # Do this properly with a role in the future
-    - name: Edit REDCap authentication to table or SSO
-      ansible.builtin.debug:
-        msg: "Edit REDCap authentication:  Control Center>Security & Authentication Configuration>Authentication Settings (System-level)>Authentication Method: Table-based or SSO. This is a placeholder for future implementation."
-    - name: Create a REDCap superuser account
-      ansible.builtin.debug:
-        msg: "Creating REDCap superuser account {{ redcap_admin_username }} with email {{ redcap_admin_email }} using redcap_set_superuser.sh and reset-redcap-password.php scripts."
