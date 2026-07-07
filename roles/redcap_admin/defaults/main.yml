@@ -15,6 +15,6 @@ redcap_web_parent_dir: /var/www/html
 redcap_web_root: "{{ redcap_web_parent_dir }}/redcap"
 
 redcap_admin_php_bin: /usr/bin/php
-redcap_admin_password_reset_local_path: "{{ playbook_dir }}/scripts/reset-redcap-password.php"
+redcap_admin_password_reset_local_path: "{{ playbook_dir }}/../scripts/reset-redcap-password.php"
 redcap_admin_password_reset_remote_path: "{{ redcap_web_root }}/reset-redcap-password.php"
 redcap_admin_remove_password_reset_script: true
