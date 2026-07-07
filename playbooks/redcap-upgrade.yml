@@ -79,6 +79,31 @@
           ansible.builtin.import_role:
             name: redcap_validate
 
+        # - name: Mark REDCap upgrade as successful
+        #   ansible.builtin.set_fact:
+        #     redcap_upgrade_successful: true
+
+      # rescue:
+      #   - name: Mark REDCap upgrade as failed
+      #     ansible.builtin.set_fact:
+      #       redcap_upgrade_successful: false
+
+      #   - name: Fail upgrade with rollback instructions
+      #     ansible.builtin.fail:
+      #       msg: |
+      #         REDCap upgrade failed.
+
+      #         The REDCap database may now be in a partially upgraded state.
+      #         Do not re-run the upgrade until rollback has completed successfully.
+
+      #         To rollback to the previous REDCap version, run:
+
+      #         ansible-playbook playbooks/redcap-rollback.yml \
+      #           -i inventories/staging/hosts.yml \
+      #           -e redcap_allow_rollback=true \
+      #           -e redcap_restore_db_dump={{ redcap_backup_sql_path | default('BACKUP_SQL_PATH_NOT_SET') }} \
+      #           -e redcap_restore_web_archive={{ redcap_backup_web_path | default('BACKUP_WEB_PATH_NOT_SET') }}
+
       always:
         - name: Disable REDCap maintenance mode
           ansible.builtin.import_role:
