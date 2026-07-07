@@ -59,6 +59,8 @@
           ansible.builtin.import_role:
             name: redcap_artifact
 
+        # Wait for upgrade to complete before proceeding to the next task.
+        # Otherwise the backup may be taken while the upgrade is still in progress, which could result in a backup of a partially upgraded REDCap instance.
         - name: Back up REDCap before upgrade
           ansible.builtin.import_role:
             name: redcap_backup
@@ -79,9 +81,9 @@
           ansible.builtin.import_role:
             name: redcap_validate
 
-        # - name: Mark REDCap upgrade as successful
-        #   ansible.builtin.set_fact:
-        #     redcap_upgrade_successful: true
+        - name: Mark REDCap upgrade as successful
+          ansible.builtin.set_fact:
+            redcap_upgrade_successful: true
 
       # rescue:
       #   - name: Mark REDCap upgrade as failed

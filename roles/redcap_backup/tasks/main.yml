@@ -53,11 +53,44 @@
     target: "{{ redcap_backup_sql_path }}"
   when: redcap_backup_db_enabled | bool
 
+- name: Check REDCap database dump completed cleanly
+  ansible.builtin.command:
+    cmd: "tail -n 5 {{ redcap_backup_sql_path }}"
+  register: redcap_backup_sql_tail
+  changed_when: false
+  when: redcap_backup_db_enabled | bool
+
+- name: Assert REDCap database dump has completion marker
+  ansible.builtin.assert:
+    that:
+      - "'Dump completed' in redcap_backup_sql_tail.stdout"
+    fail_msg: >-
+      REDCap database dump exists but does not appear to have completed cleanly:
+      {{ redcap_backup_sql_path }}
+  when: redcap_backup_db_enabled | bool
+
 - name: Archive REDCap web root before upgrade
   community.general.archive:
     path: "{{ redcap_web_root }}"
     dest: "{{ redcap_backup_web_path }}"
     format: gz
+  when: redcap_backup_web_enabled | bool
+
+- name: Validate REDCap web archive
+  ansible.builtin.stat:
+    path: "{{ redcap_backup_web_path }}"
+  register: redcap_backup_web_stat
+  when: redcap_backup_web_enabled | bool
+
+- name: Assert REDCap web archive is usable
+  ansible.builtin.assert:
+    that:
+      - redcap_backup_web_stat.stat.exists | default(false)
+      - redcap_backup_web_stat.stat.isreg | default(false)
+      - redcap_backup_web_stat.stat.size | int > 0
+    fail_msg: >-
+      REDCap web archive failed or produced an empty file:
+      {{ redcap_backup_web_path }}
   when: redcap_backup_web_enabled | bool
 
 - name: Archive REDCap data directory before upgrade
@@ -69,6 +102,27 @@
     - redcap_backup_data_enabled | bool
     - redcap_backup_source_stats.results[1].stat.exists | default(false)
 
+- name: Validate REDCap data archive
+  ansible.builtin.stat:
+    path: "{{ redcap_backup_data_path }}"
+  register: redcap_backup_data_stat
+  when:
+    - redcap_backup_data_enabled | bool
+    - redcap_backup_source_stats.results[1].stat.exists | default(false)
+
+- name: Assert REDCap data archive is usable
+  ansible.builtin.assert:
+    that:
+      - redcap_backup_data_stat.stat.exists | default(false)
+      - redcap_backup_data_stat.stat.isreg | default(false)
+      - redcap_backup_data_stat.stat.size | int > 0
+    fail_msg: >-
+      REDCap data archive failed or produced an empty file:
+      {{ redcap_backup_data_path }}
+  when:
+    - redcap_backup_data_enabled | bool
+    - redcap_backup_source_stats.results[1].stat.exists | default(false)
+    
 - name: Initialize expected backup path list
   ansible.builtin.set_fact:
     redcap_expected_backup_paths: []
